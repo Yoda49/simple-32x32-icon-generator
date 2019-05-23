@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<HTML STYLE='background: white;'>
+
+	<HEAD>
+		<TITLE>Generator</TITLE>
+		<STYLE>
+		*
+		{
+			margin: 0;
+			padding: 0;
+			z-index: 0;
+		}
+		</STYLE>
+	</HEAD>
+
+	<BODY STYLE='width: 1000px; position: relative; background: white;' ondragstart="return false;" ondrop="return false;">
+		<IMG ID='image' SRC='' WIDTH='640' HEIGHT='640' STYLE='position: absolute; top: 5px; left: 5px; display: block; z-index: 1; opacity: 0.6;'>
+		<CANVAS ONMOUSEMOVE='mouse_move(event)' ONMOUSEDOWN='mouse_down()' ONMOUSEUP='mouse_up()' ID='canvas' WIDTH='640' HEIGHT='640' STYLE='position: absolute; top: 5px; left: 5px; display: block; z-index: 10;'></CANVAS>
+		<INPUT TYPE="file" ID="files" ONCHANGE='load_image(this.files)' STYLE='display: block; position: absolute; top: 5px; left: 970px; cursor: pointer;'>
+		
+		
+		<INPUT TYPE='button' VALUE='Конвертировать изображение в HEX' ONCLICK='convert_hex()' STYLE='position: absolute; left: 970px; display: block; top: 35px; width: 270px; cursor: pointer;'>
+		<INPUT TYPE='button' VALUE='Конвертировать HEX в изображение' ONCLICK='parse_hex()'   STYLE='position: absolute; left: 970px; display: block; top: 60px; width: 270px; cursor: pointer;'>
+		<INPUT TYPE='button' ID='full' VALUE='Включить полный экран' ONCLICK='full_on (document.body)'  STYLE='position: absolute; left: 970px; display: block; top: 90px; width: 270px; cursor: pointer;'>
+		<INPUT ID='mode' ONCLICK='mode_switch("button")' TYPE='button' VALUE='Режим рисования (лев. ctrl)' STYLE='position: absolute; left: 970px; top: 120px; width: 270px; cursor: pointer;'>
+		
+		<DIV ID="pos" STYLE='position: absolute; left: 1180px; top: 150px; font: bold 100% verdana; width: 100px; height: 20px;'>00 00</DIV>
+		<DIV STYLE='position: absolute; left: 970px; top: 150px; font: bold 100% verdana;'>Превью:</DIV>
+		<CANVAS ID='preview' WIDTH='64' HEIGHT='64' STYLE='position: absolute; top: 175px; left: 970px; display: block; z-index: 10; background: #F0F0F0;'></CANVAS>
+		
+		<TEXTAREA ID='result' STYLE='position: absolute; display: block; top: 250px; left: 970px; font: 150% monospace; width: 260px; padding: 5px; height: 400px; resize: none;' VALUE='' PLACEHOLDER='Вставьте матрицу HEX значений'></TEXTAREA>
+		
+		<INPUT TYPE='button' VALUE='Копировать в буфер обмена' ONCLICK='clipboard()' STYLE='position: absolute; left: 970px; display: block; top: 670px; width: 270px; cursor: pointer;'>
+	</BODY>
+
+
+
+
+	<SCRIPT>
+		// draw grid
+		var canvas  = document.getElementById('canvas');
+		var preview = document.getElementById('preview');
+		
+		var canvas_ctx  = canvas.getContext ('2d');
+		var preview_ctx = preview.getContext('2d');
+		
+		var canvas_ctx 
+		canvas_ctx.lineWidth = 1;
+		
+		for (let i = 0; i < 33; i++)
+		{
+			if (i == 8 || i == 16 || i == 24) canvas_ctx.strokeStyle  = "red"; else canvas_ctx.strokeStyle  = "gray";
+			canvas_ctx.beginPath();
+			canvas_ctx.moveTo(i * 20, 0);
+			canvas_ctx.lineTo(i * 20, 640);
+			canvas_ctx.stroke();
+			
+			canvas_ctx.beginPath();
+			canvas_ctx.moveTo(0, i * 20);
+			canvas_ctx.lineTo(640, i * 20);
+			canvas_ctx.stroke();
+		}
+
+	  
+	  
+		var array = [];
+		var mode = 1;
+		var mouse_status = false;
+		var full_status = false;
+
+		// create 2-dim array 32x32
+		for (let x = 0; x < 32; x++)
+		{
+			array[x] = [];
+			for (let y = 0; y < 32; y++) array [x][y] = 0;
+		}
+		
+		document.body.onkeydown = mode_switch;
+		// ========================================================
+		// CELL ONMOVE
+		// ========================================================
+		function mouse_move (event)
+		{
+			let x = event.offsetX;
+			let y = event.offsetY;
+			let	x0 = Math.floor (x / 20);
+			let	y0 = Math.floor (y / 20);
+
+			if (x0 > 31 || y0 > 31) return;
+			document.getElementById("pos").innerHTML = x0 + " " + y0;
+			
+			if (mouse_status == false) return;
+			
+			if (mouse_status == true)
+			{
+				if (mode == 0)
+				{
+					array [x0][y0] = 0;
+					canvas_ctx.clearRect (x0 * 20 + 2, y0 * 20 + 2, 16, 16);
+					preview_ctx.clearRect (x0 * 2, y0 * 2, 2, 2);
+				}
+				else
+				{
+					array[x0][y0] = 1;
+					
+					canvas_ctx.fillStyle = "#00FF00";
+					canvas_ctx.fillRect (x0 * 20 + 2, y0 * 20 + 2, 16, 16);
+					
+					preview_ctx.fillStyle = "black";
+					preview_ctx.fillRect (x0 * 2, y0 * 2, 2, 2);
+				}
+
+			}
+		}
+		
+		
+		function mouse_down ()
+		{
+			mouse_status = true;
+			console.log("mouse_status = true");
+			
+			let x = event.offsetX;
+			let y = event.offsetY;
+			
+			let	x0 = Math.floor (x / 20);
+			let	y0 = Math.floor (y / 20);
+			
+			if (mouse_status == true)
+			{
+				if (mode == 0)
+				{
+					array [x0][y0] = 0;
+					
+					canvas_ctx.clearRect (x0 * 20 + 2, y0 * 20 + 2, 16, 16);
+					preview_ctx.clearRect (x0 * 2, y0 * 2, 2, 2);
+				}
+				else
+				{
+					array[x0][y0] = 1;
+					
+					canvas_ctx.fillStyle = "#00FF00";
+					canvas_ctx.fillRect (x0 * 20 + 2, y0 * 20 + 2, 16, 16);
+					
+					preview_ctx.fillStyle = "black";
+					preview_ctx.fillRect (x0 * 2, y0 * 2, 2, 2);
+				}
+			}
+		}
+		
+		function mouse_up ()
+		{
+			mouse_status = false;
+		}
+		
+		function mode_switch (event)
+		{
+			if (event.keyCode == 17 || event == "button")
+			{
+				if (mode == 0)
+				{
+					mode = 1;
+					document.getElementById("mode").value = "Режим рисования (лев. ctrl)";
+				}
+				else 
+				{
+					mode = 0;
+					document.getElementById("mode").value = "Режим стирания (лев. ctrl)";
+				}
+			}
+		}
+
+		
+		
+		
+		function add8 (value)
+		{
+			if      (value.length == 8) return value;
+			else if (value.length == 7) return "0" + value;
+			else if (value.length == 6) return "00" + value;
+			else if (value.length == 5) return "000" + value;
+			else if (value.length == 4) return "0000" + value;
+			else if (value.length == 3) return "00000" + value;
+			else if (value.length == 2) return "000000" + value;
+			else if (value.length == 1) return "0000000" + value;
+			else if (value.length == 0) return "00000000" + value;
+		}
+		
+		function add32 (value)
+		{
+			let l = value.length;
+			let out = "";
+			for (let i = 0; i < 32 - l; i++) out += "0";
+			return out + value;
+		}
+		
+		// ============================
+		// CONVERT TO HEX
+		// ============================	
+		function convert_hex ()
+		{
+			let hex = "";
+			let out = "0x";
+			let new_line = "";
+			
+			for (let y = 0; y < 32; y++)
+			{
+				hex = "";
+				for (let x = 0; x < 32; x++) hex += array[x][y];			
+				hex = parseInt(hex, 2);
+				hex = hex.toString(16);
+				hex = hex.toUpperCase();
+				hex = add8(hex);
+				
+				out += hex;
+				if (y != 31) out += ", 0x";
+			}
+			document.getElementById("result").value = out;
+			
+			
+		}
+				
+				
+		// ============================
+		// PARSE HEX
+		// ============================	
+		function parse_hex ()
+		{
+			let value = document.getElementById("result").value.split(",");
+			let hex = "";
+			
+			if (value.length != 32)
+			{
+				console.log("Ошибка конвертации HEX в изображение!");
+				console.log("Value.length = " + value.length);
+				return;
+			}
+			
+			clear_array ();
+			
+			
+			for (let y = 0; y < 32; y++)
+			{
+				hex = value[y].trim();
+				hex = hex.substring(2); // cut 0x
+				hex = parseInt(hex, 16);
+				hex = hex.toString(2);
+				hex = add32(hex);
+				
+				for (let x = 0; x < 32; x++)
+				{
+					if (hex.charAt(x) == "1") array[x][y] = 1;
+				}
+			}
+			
+			redraw_image ();
+			
+			document.getElementById("result").value = "";
+		}
+		
+		// ============================
+		// REDRAW IMAGE
+		// ============================
+		function redraw_image ()
+		{
+			canvas_ctx.clearRect  (0, 0, 639, 639);
+			preview_ctx.clearRect (0, 0, 63,  63);
+			
+		for (let i = 0; i < 33; i++)
+		{
+			if (i == 8 || i == 16 || i == 24) canvas_ctx.strokeStyle  = "red"; else canvas_ctx.strokeStyle  = "gray";
+			canvas_ctx.beginPath();
+			canvas_ctx.moveTo(i * 20, 0);
+			canvas_ctx.lineTo(i * 20, 640);
+			canvas_ctx.stroke();
+			
+			canvas_ctx.beginPath();
+			canvas_ctx.moveTo(0, i * 20);
+			canvas_ctx.lineTo(640, i * 20);
+			canvas_ctx.stroke();
+		}
+			
+			for (let x = 0; x < 32; x++)
+			{
+				for (let y = 0; y < 32; y++)
+				{
+					if (array [x][y] == 1)
+					{
+						canvas_ctx.fillStyle = "#00FF00";
+						canvas_ctx.fillRect (x * 20 + 2, y * 20 + 2, 16, 16);
+						
+						preview_ctx.fillStyle = "black";
+						preview_ctx.fillRect (x, y, 1, 1);
+					}
+				}
+			}
+		}
+		
+		
+		// ============================
+		// CLEAR ARRAY (WITH 0)
+		// ============================
+		function clear_array ()
+		{
+			for (let y = 0; y < 32; y++)
+			{
+				for (let x = 0; x < 32; x++) array [x][y] = 0;
+			}
+		}
+		
+		// ============================
+		// LOAD IMAGE
+		// ============================
+		var reader = new FileReader();
+		
+		function load_image (files)
+		{
+			reader.onload = function(event)
+			{
+				var dataUri = event.target.result;
+				document.getElementById("image").src = dataUri;
+
+			};
+		 
+			reader.onerror = function(event)
+			{
+				console.error("Файл не может быть прочитан! код " + event.target.error.code);
+			};
+		 
+			reader.readAsDataURL(files[0]);
+		}
+		
+		
+		// ============================
+		// FULL SCREEN
+		// ============================
+		function full_on (element)
+		{
+			if (full_status == 0)
+			{
+				if      (element.requestFullscreen      ) element.requestFullscreen ();
+				else if (element.webkitRequestFullscreen) element.webkitRequestFullscreen ();
+				else if (element.mozRequestFullscreen   ) element.mozRequestFullscreen ();
+				document.getElementById("full").value = "Выключить полноэкранный режим";
+				full_status = 1;
+			}
+			else
+			{
+				if      (document.CancelFullscreen      ) document.cancelFullscreen ();
+				else if (document.webkitCancelFullscreen) document.webkitCancelFullscreen ();
+				else if (document.exitFullscreen()      ) document.exitFullscreen ();
+				else if (element.mozCancelFullscreen    ) element.mozCancelFullscreen ();
+				document.getElementById("full").value = "Включить полноэкранный режим";
+				full_status = 0;
+			}
+		};
+		
+		// ============================
+		// CLIPBOARD
+		// ============================
+		function clipboard ()
+		{  
+			document.getElementById("result").select();
+			
+			try
+			{  
+				let successful = document.execCommand('copy');  
+				let msg = successful ? 'successful' : 'unsuccessful';  
+				console.log('Copy HEX was ' + msg);  
+			}
+			catch (err)
+			{  
+				console.log('Oops, unable to copy HEX');  
+			}  
+
+			window.getSelection().removeAllRanges();  
+		};
+
+	</SCRIPT>
+
+</HTML>
